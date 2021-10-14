@@ -23,9 +23,8 @@
 * **variables.tf** : Variable declaration
 * **terraform.tfvars**: Variable initialization
 * **provider.tf** :: Declaration of aws provider
-* **tests/api.test.js.js** :test/api.test.js: Contains unit test
   
-## Teach Stack
+## Tech Stack
 Terraform
 
 ## Features
