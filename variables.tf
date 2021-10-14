@@ -1,11 +1,11 @@
-variable aws_profile {
+variable "aws_profile" {
   description = "Aws profile"
   type        = string
 }
 
-variable aws_region {
+variable "aws_region" {
   description = "Aws region"
-  type = string
+  type        = string
 }
 
 variable "vpc_cider" {
