@@ -1,13 +1,6 @@
-locals {
-  enable_dns_support               = true
-  enable_dns_hostnames             = true
-  enable_classiclink_dns_support   = true
-  assign_generated_ipv6_cidr_block = false
-}
-
 resource "aws_vpc" "vpc" {
   cidr_block                       = var.vpc_cider
-  instance_tenancy                 = "default"
+  instance_tenancy                 = local.instance_tenancy
   enable_dns_support               = local.enable_dns_support
   enable_dns_hostnames             = local.enable_dns_hostnames
   enable_classiclink_dns_support   = local.enable_classiclink_dns_support
@@ -27,7 +20,7 @@ resource "aws_internet_gateway" "internet-gateway" {
   vpc_id = aws_vpc.vpc.id
 
   tags = {
-    Name = "test internet gateway"
+    Name = var.itg_name
   }
 }
 
@@ -61,7 +54,7 @@ resource "aws_route_table" "public-route-table" {
   }
 
   tags = {
-    Name = "Public Route Table"
+    Name = var.route_table_name
   }
 }
 
