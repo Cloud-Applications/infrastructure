@@ -32,4 +32,14 @@ variable "subnet_names" {
   description = "Public Subnet Name Tags"
 }
 
+variable "itg_name" {
+  type        = string
+  description = "Internet Gateway Name Tags"
+}
+
+variable "route_table_name" {
+  type        = string
+  description = "Route Table Name Tags"
+}
+
 
