@@ -8,5 +8,9 @@ subnet_names = ["Subnet 1", "Subnet 2", "Subnet 3"]
 
 vpc_name = "Multiple VPC Test"
 
+aws_profile = "prod"
+
+aws_region = "us-east-1"
+
 
 
