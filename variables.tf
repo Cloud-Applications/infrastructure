@@ -42,4 +42,124 @@ variable "route_table_name" {
   description = "Route Table Name Tags"
 }
 
+variable "ports" {
+  type        = list(string)
+  description = "Security Group Ingress Ports"
+}
+
+variable "protocol" {
+  type = string
+}
+
+variable "ami" {
+  type = string
+}
+
+variable "protocol_egress" {
+  type = string
+}
+
+variable "default_port" {
+  type = string
+}
+
+variable "size" {
+  type = string
+}
+variable "type" {
+  type = string
+}
+
+variable "instance_type" {
+  type = string
+}
+
+variable "key_name" {
+  type = string
+}
+
+variable "allocated_storage" {
+  type = number
+}
+
+variable "backup_retention_period" {
+  type = string
+}
+
+variable "backup_window" {
+  type = string
+}
+
+variable "maintenance_window" {
+  type = string
+}
+
+variable "engine" {
+  type = string
+}
+
+variable "instance_class" {
+  type = string
+}
+
+variable "name" {
+  type = string
+}
+
+variable "username" {
+  type = string
+}
+
+variable "password" {
+  type = string
+}
+
+variable "port" {
+  type = string
+}
+
+variable "publicly_accessible" {
+  type = string
+}
+
+variable "storage_encrypted" {
+  type = string
+}
+
+variable "storage_type" {
+  type = string
+}
+
+variable "performance_insights_enabled" {
+  type = string
+}
+
+variable "dbname" {
+  type = string
+}
+
+variable "volume_size" {
+  type = string
+}
+
+variable "volume_type" {
+  type = string
+}
+
+variable "hostname" {
+  type = string
+}
+
+variable "public_key" {
+  type = string
+}
+
+variable "private_subnet_cidrs" {
+  type = list(string)
+}
+
+variable "private_subnet_az" {
+  type = list(string)
+}
+
 
