@@ -40,7 +40,7 @@ resource "aws_subnet" "public-subnet" {
   }
 }
 
-/* Private subnet */
+/* Private subnets */
 resource "aws_subnet" "private_subnet" {
   vpc_id                  = aws_vpc.vpc.id
   count                   = length(var.private_subnet_az)
