@@ -195,7 +195,7 @@ resource "aws_instance" "ec2-instance" {
   subnet_id                   = aws_subnet.public-subnet[0].id
   instance_type               = var.instance_type
   associate_public_ip_address = true
-  key_name                    = aws_key_pair.keyPair.key_name
+  key_name                    = var.key_name
   vpc_security_group_ids      = [aws_security_group.application.id]
   iam_instance_profile        = aws_iam_instance_profile.iam_ec2_roleprofile.id
   user_data                   = data.template_file.config_data.rendered
@@ -213,7 +213,7 @@ resource "aws_instance" "ec2-instance" {
 
 resource "aws_eip" "elasticIP" {
   vpc      = true
-  instance = aws_instance.ec2-instance.id
+  depends_on = [aws_internet_gateway.internet-gateway]
 }
 
 resource "tls_private_key" "keys" {
@@ -221,10 +221,10 @@ resource "tls_private_key" "keys" {
   rsa_bits  = 4096
 }
 
-resource "aws_key_pair" "keyPair" {
-  key_name   = var.key_name
-  public_key = var.public_key
-}
+// resource "aws_key_pair" "keyPair" {
+//   key_name   = var.key_name
+//   public_key = var.public_key
+// }
 
 resource "aws_db_subnet_group" "awsDbSubnetGrp" {
   name       = "main"
