@@ -170,3 +170,11 @@ variable "domainName" {
   type = string
 }
 
+variable "accountId" {
+  type = list
+}
+
+variable "s3bucketName" {
+  type = string
+}
+

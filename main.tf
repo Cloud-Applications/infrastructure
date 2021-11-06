@@ -219,11 +219,6 @@ resource "tls_private_key" "keys" {
   rsa_bits  = 4096
 }
 
-// resource "aws_key_pair" "keyPair" {
-//   key_name   = var.key_name
-//   public_key = var.public_key
-// }
-
 resource "aws_db_subnet_group" "awsDbSubnetGrp" {
   name       = "main"
   subnet_ids = [aws_subnet.private_subnet[0].id, aws_subnet.private_subnet[1].id]
@@ -252,12 +247,11 @@ resource "aws_db_parameter_group" "pg" {
   family = "postgres13"
 }
 data "aws_ami" "testAmi" {
-  owners      = ["self"]
+  owners      = var.accountId
   most_recent = true
 }
 resource "aws_db_instance" "rds" {
   identifier = "csye6225"
-  // identifier = "${local.resource_name_prefix}-${var.identifier}"
   allocated_storage         = var.allocated_storage
   backup_retention_period   = var.backup_retention_period
   backup_window             = var.backup_window
@@ -283,7 +277,7 @@ resource "aws_kms_key" "mykey" {
   deletion_window_in_days = 10
 }
 resource "aws_s3_bucket" "s3bucket" {
-  bucket        = "s3bucket.dev.harshikagupta.me"
+  bucket        = var.s3bucketName
   acl           = "private"
   force_destroy = true
   lifecycle_rule {
@@ -334,8 +328,9 @@ data "aws_route53_zone" "selected" {
 }
 
 resource "aws_route53_record" "www" {
+  depends_on = [aws_instance.ec2-instance]
   zone_id = data.aws_route53_zone.selected.zone_id
-  name    = "${data.aws_route53_zone.selected.name}"
+  name    = "api.${data.aws_route53_zone.selected.name}"
   type    = "A"
   ttl     = "60"
   records = ["${aws_instance.ec2-instance.public_ip}"]
