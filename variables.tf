@@ -162,4 +162,11 @@ variable "private_subnet_az" {
   type = list(string)
 }
 
+variable "iam_role" {
+  type = string
+}
+
+variable "domainName" {
+  type = string
+}
 

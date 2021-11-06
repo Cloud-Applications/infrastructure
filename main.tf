@@ -195,9 +195,9 @@ resource "aws_instance" "ec2-instance" {
   subnet_id                   = aws_subnet.public-subnet[0].id
   instance_type               = var.instance_type
   associate_public_ip_address = true
-  key_name                    = aws_key_pair.keyPair.key_name
+  key_name                    = var.key_name
   vpc_security_group_ids      = [aws_security_group.application.id]
-  iam_instance_profile        = aws_iam_instance_profile.iam_ec2_roleprofile.id
+  iam_instance_profile        = aws_iam_instance_profile.iam_ec2_roleprofile.name
   user_data                   = data.template_file.config_data.rendered
   root_block_device {
     volume_size           = var.volume_size
@@ -205,15 +205,13 @@ resource "aws_instance" "ec2-instance" {
     delete_on_termination = true
   }
   tags = {
-    Name        = "ec2-instance"
-    Environment = "development"
-    Project     = "DEMO-EC2"
+    Name        = "webapp"
   }
 }
 
 resource "aws_eip" "elasticIP" {
   vpc      = true
-  instance = aws_instance.ec2-instance.id
+  depends_on = [aws_internet_gateway.internet-gateway]
 }
 
 resource "tls_private_key" "keys" {
@@ -221,10 +219,10 @@ resource "tls_private_key" "keys" {
   rsa_bits  = 4096
 }
 
-resource "aws_key_pair" "keyPair" {
-  key_name   = var.key_name
-  public_key = var.public_key
-}
+// resource "aws_key_pair" "keyPair" {
+//   key_name   = var.key_name
+//   public_key = var.public_key
+// }
 
 resource "aws_db_subnet_group" "awsDbSubnetGrp" {
   name       = "main"
@@ -267,8 +265,7 @@ resource "aws_db_instance" "rds" {
   db_subnet_group_name      = aws_db_subnet_group.awsDbSubnetGrp.name
   engine                    = var.engine
   instance_class            = var.instance_class
-  skip_final_snapshot  = true
-  // final_snapshot_identifier = false
+  skip_final_snapshot       = true
   multi_az                  = false
   name                      = var.dbname
   parameter_group_name      = aws_db_parameter_group.pg.id
@@ -327,54 +324,75 @@ data "template_file" "config_data" {
       EOF
 }
 
-resource "aws_iam_role" "iam_role" {
-  name = "EC2-CSYE6225"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Sid    = ""
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      },
-    ]
-  })
+// data "aws_iam_instance_profile" "iam_ec2_roleprofile" {
+//   name = "iam_ec2_roleprofile"
+// }
+
+data "aws_route53_zone" "selected" {
+  name         = var.domainName
+  private_zone = false
 }
 
-resource "aws_iam_policy" "WebAppS3" {
-  name        = "WebAppS3"
-  description = "IAM Policy"
-  policy      = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": [
-                "s3:ListAllMyBuckets", 
-              "s3:GetBucketLocation",
-              "s3:GetObject",
-              "s3:PutObject",
-              "s3:DeleteObject"
-            ],
-      "Effect": "Allow",
-      "Resource": ["arn:aws:s3:::${aws_s3_bucket.s3bucket.id}",
-                "arn:aws:s3:::${aws_s3_bucket.s3bucket.id}/*"]
-    }
-  ]
-}
-EOF
+resource "aws_route53_record" "www" {
+  zone_id = data.aws_route53_zone.selected.zone_id
+  name    = "${data.aws_route53_zone.selected.name}"
+  type    = "A"
+  ttl     = "60"
+  records = ["${aws_instance.ec2-instance.public_ip}"]
 }
 
-resource "aws_iam_role_policy_attachment" "test-attach" {
-  role       = aws_iam_role.iam_role.name
-  policy_arn = aws_iam_policy.WebAppS3.arn
+data "aws_iam_role" "iam_role" {
+  name = var.iam_role
 }
+
+// resource "aws_iam_role" "iam_role" {
+//   name = "EC2-CSYE6225"
+//   assume_role_policy = jsonencode({
+//     Version = "2012-10-17"
+//     Statement = [
+//       {
+//         Action = "sts:AssumeRole"
+//         Effect = "Allow"
+//         Sid    = ""
+//         Principal = {
+//           Service = "ec2.amazonaws.com"
+//         }
+//       },
+//     ]
+//   })
+// }
+
+// resource "aws_iam_policy" "WebAppS3" {
+//   name        = "WebAppS3"
+//   description = "IAM Policy"
+//   policy      = <<EOF
+// {
+//   "Version": "2012-10-17",
+//   "Statement": [
+//     {
+//       "Action": [
+//                 "s3:ListAllMyBuckets", 
+//               "s3:GetBucketLocation",
+//               "s3:GetObject",
+//               "s3:PutObject",
+//               "s3:DeleteObject"
+//             ],
+//       "Effect": "Allow",
+//       "Resource": ["arn:aws:s3:::${aws_s3_bucket.s3bucket.id}",
+//                 "arn:aws:s3:::${aws_s3_bucket.s3bucket.id}/*"]
+//     }
+//   ]
+// }
+// EOF
+// }
+
+// resource "aws_iam_role_policy_attachment" "bucketpolicy-attach" {
+//   role       = data.aws_iam_role.iam_role.name
+//   policy_arn = aws_iam_policy.WebAppS3.arn
+// }
 
 resource "aws_iam_instance_profile" "iam_ec2_roleprofile" {
   name = "iam_ec2_roleprofile"
-  role = aws_iam_role.iam_role.name
+  role = data.aws_iam_role.iam_role.name
 }
 
