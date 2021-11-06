@@ -219,6 +219,11 @@ resource "tls_private_key" "keys" {
   rsa_bits  = 4096
 }
 
+// resource "aws_key_pair" "keyPair" {
+//   key_name   = var.key_name
+//   public_key = var.public_key
+// }
+
 resource "aws_db_subnet_group" "awsDbSubnetGrp" {
   name       = "main"
   subnet_ids = [aws_subnet.private_subnet[0].id, aws_subnet.private_subnet[1].id]
