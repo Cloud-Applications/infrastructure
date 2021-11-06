@@ -335,7 +335,7 @@ data "aws_route53_zone" "selected" {
 resource "aws_route53_record" "www" {
   depends_on = [aws_instance.ec2-instance]
   zone_id = data.aws_route53_zone.selected.zone_id
-  name    = "api.${data.aws_route53_zone.selected.name}"
+  name    = "${data.aws_route53_zone.selected.name}"
   type    = "A"
   ttl     = "60"
   records = ["${aws_instance.ec2-instance.public_ip}"]
