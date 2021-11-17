@@ -106,7 +106,7 @@ resource "aws_security_group" "application" {
       to_port          = var.ports[2]
       protocol         = var.protocol
       description      = "TLS from VPC"
-      cidr_blocks      = [aws_vpc.vpc.cidr_block]
+      cidr_blocks      = []
       ipv6_cidr_blocks = []
       prefix_list_ids  = []
       security_groups  = [aws_security_group.loadBalancerSecurityGrp.id]
@@ -128,7 +128,7 @@ resource "aws_security_group" "application" {
       to_port          = var.ports[1]
       protocol         = var.protocol
       description      = "HTTP from VPC"
-      cidr_blocks      = [aws_vpc.vpc.cidr_block]
+      cidr_blocks      = []
       ipv6_cidr_blocks = []
       prefix_list_ids  = []
       security_groups  = [aws_security_group.loadBalancerSecurityGrp.id]
@@ -139,7 +139,7 @@ resource "aws_security_group" "application" {
       from_port        = var.ports[3]
       to_port          = var.ports[3]
       protocol         = var.protocol
-      cidr_blocks      = ["0.0.0.0/0"]
+      cidr_blocks      = []
       ipv6_cidr_blocks = []
       prefix_list_ids  = []
       security_groups  = [aws_security_group.loadBalancerSecurityGrp.id]
@@ -185,29 +185,6 @@ resource "aws_security_group" "application" {
     Name = "application"
   }
 }
-
-// Create EC2 instance
-// resource "aws_instance" "ec2-instance" {
-//   depends_on                  = [aws_db_instance.rds]
-//   ami                         = data.aws_ami.testAmi.id
-//   availability_zone           = var.subnet_az[0]
-//   disable_api_termination     = false
-//   subnet_id                   = aws_subnet.public-subnet[0].id
-//   instance_type               = var.instance_type
-//   associate_public_ip_address = true
-//   key_name                    = var.key_name
-//   vpc_security_group_ids      = [aws_security_group.application.id]
-//   iam_instance_profile        = aws_iam_instance_profile.iam_ec2_roleprofile.name
-//   user_data                   = data.template_file.config_data.rendered
-//   root_block_device {
-//     volume_size           = var.volume_size
-//     volume_type           = var.volume_type
-//     delete_on_termination = true
-//   }
-//   tags = {
-//     Name        = "webapp"
-//   }
-// }
 
 resource "aws_eip" "elasticIP" {
   vpc      = true
@@ -333,15 +310,6 @@ data "aws_route53_zone" "selected" {
   name         = var.domainName
   private_zone = false
 }
-
-// resource "aws_route53_record" "www" {
-//   depends_on = [aws_instance.ec2-instance]
-//   zone_id = data.aws_route53_zone.selected.zone_id
-//   name    = "${data.aws_route53_zone.selected.name}"
-//   type    = "A"
-//   ttl     = "60"
-//   records = ["${aws_instance.ec2-instance.public_ip}"]
-// }
 
 data "aws_iam_role" "iam_role" {
   name = var.iam_role
@@ -486,14 +454,6 @@ resource "aws_autoscaling_policy" "asg-scale-up" {
     cooldown = 60
     autoscaling_group_name = aws_autoscaling_group.autoScaleGroup.name
 }
-// resource "aws_autoscaling_group_tag" "tagForAsg" {
-//   autoscaling_group_name = aws_autoscaling_group.id
-//   tag {
-//     key = "Name"value = "webapp"
-//     propagate_at_launch = true
-//   }
-// }
-
 
 resource "aws_autoscaling_policy" "asg-scale-down" {
     name = "agents-scale-down"
@@ -543,9 +503,9 @@ resource "aws_lb" "AppLoadBalancer" {
   name               = "AppLoadBalancer"
   internal           = false
   load_balancer_type = "application"
-  ip_address_type = "ipv4"
+  ip_address_type    = "ipv4"
   security_groups    = [aws_security_group.loadBalancerSecurityGrp.id]
-  subnets            = aws_subnet.public-subnet.*.id
+  subnets            = [aws_subnet.public-subnet[0].id, aws_subnet.public-subnet[1].id, aws_subnet.public-subnet[2].id]
   tags = {
     Environment = var.aws_profile
     Name = "AppLoadBalancer"
@@ -577,8 +537,6 @@ resource "aws_lb_listener" "alb_listener" {
   load_balancer_arn = aws_lb.AppLoadBalancer.arn
   port              = "80"
   protocol          = "HTTP"
-  // certificate_arn   = data.aws_acm_certificate.aws_ssl_certificate.arn
-
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.LoadBalancerTargetGroup.arn
