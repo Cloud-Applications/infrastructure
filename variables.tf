@@ -178,3 +178,11 @@ variable "s3bucketName" {
   type = string
 }
 
+variable "codeDeployAppName" {
+  type = string
+}
+
+variable "codeDeployGroupName" {
+  type = string
+}
+
