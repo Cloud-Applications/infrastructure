@@ -171,7 +171,11 @@ variable "domainName" {
 }
 
 variable "accountId" {
-  type = list
+  type = list(any)
+}
+
+variable "replica_private_subnet_az" {
+  type = list(any)
 }
 
 variable "s3bucketName" {
@@ -183,6 +187,54 @@ variable "codeDeployAppName" {
 }
 
 variable "codeDeployGroupName" {
+  type = string
+}
+
+variable "mailAddress" {
+  type = string
+}
+
+variable "dynamo_dbname" {
+  type = string
+}
+
+variable "replica_private_subnet_cidrs" {
+  type = list(any)
+}
+
+variable "serverlessBucket" {
+  type = string
+}
+
+variable "AWS_ACCOUNT_ID" {
+  description = "Account Id"
+  type        = string
+}
+
+variable "CODE_DEPLOY_APPLICATION_NAME" {
+  description = "Application Name"
+  type        = string
+}
+
+variable "aws_iam_user_name" {
+  description = " Iam user name"
+  type        = string
+}
+
+variable "s3bucketNameImage" {
+  description = " S3 bucket image name"
+  type        = string
+}
+
+variable "s3bucketCodeDeployName" {
+  type = string
+}
+
+variable "replicaAZ" {
+  type = string
+}
+
+variable "rdsAZ" {
   type = string
 }
 
