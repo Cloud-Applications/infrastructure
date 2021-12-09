@@ -31,6 +31,7 @@ Terraform
 Creation of multiple VPC's along with its resources
 
 ## Import ACM Certificate Command
-aws acm import-certificate --certificate fileb://Certificate.pem \
-      --certificate-chain fileb://CertificateChain.pem \
-      --private-key fileb://PrivateKey.pem 
+
+``aws acm import-certificate --certificate fileb:///Users/harshikag/Downloads/prod_harshikagupta_me/prod_harshikagupta_me.crt  \
+   --certificate-chain fileb:///Users/harshikag/Downloads/prod_harshikagupta_me/prod_harshikagupta_me.ca-bundle  \
+   --private-key fileb:///Users/harshikag/Downloads/prod_harshikagupta_me/private.key --region us-east-1``
