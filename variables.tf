@@ -238,3 +238,7 @@ variable "rdsAZ" {
   type = string
 }
 
+// variable "ca_cert" {
+//   type = string
+// }
+

@@ -29,3 +29,8 @@ Terraform
 
 ## Features
 Creation of multiple VPC's along with its resources
+
+## Import ACM Certificate Command
+aws acm import-certificate --certificate fileb://Certificate.pem \
+      --certificate-chain fileb://CertificateChain.pem \
+      --private-key fileb://PrivateKey.pem 

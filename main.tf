@@ -5,7 +5,6 @@ resource "aws_vpc" "vpc" {
   enable_dns_hostnames             = local.enable_dns_hostnames
   enable_classiclink_dns_support   = local.enable_classiclink_dns_support
   assign_generated_ipv6_cidr_block = local.assign_generated_ipv6_cidr_block
-
   tags = {
     Name = var.vpc_name
   }
@@ -222,6 +221,15 @@ resource "aws_security_group" "database" {
 resource "aws_db_parameter_group" "pg" {
   name   = "pg"
   family = "postgres13"
+  parameter {
+    name  = "rds.force_ssl"
+    value = 1
+  }
+  // parameter {
+  //   name  = "performance_schema"
+  //   value = "1"
+  //   apply_method = "pending-reboot"
+  // }
 }
 data "aws_ami" "testAmi" {
   owners      = var.accountId
@@ -250,7 +258,8 @@ resource "aws_db_instance" "rds" {
   storage_encrypted          = var.storage_encrypted
   storage_type               = var.storage_type
   vpc_security_group_ids     = [aws_security_group.database.id]
-  availability_zone = var.replicaAZ
+  kms_key_id                 = aws_kms_key.keyForRds.arn
+  availability_zone          = var.rdsAZ
 }
 resource "aws_kms_key" "mykey" {
   description             = "This key is used to encrypt bucket objects"
@@ -301,12 +310,13 @@ data "template_file" "config_data" {
   template = <<-EOF
 		#! /bin/bash
       echo export DB_USERNAME="${var.username}" >> /etc/environment
+      echo export DOMAIN_NAME="${var.domainName}" >> /etc/environment
+      echo export TOPIC_ARN="${aws_sns_topic.snsTopic.arn}" >> /etc/environment
       echo export DB_NAME="${var.dbname}" >> /etc/environment
       echo export DB_PASSWORD="${var.password}" >> /etc/environment
       echo export DB_HOST="${aws_db_instance.rds.address}" >> /etc/environment
       echo export S3_BUCKET="${aws_s3_bucket.s3bucket.bucket}" >> /etc/environment
-      echo export DOMAIN_NAME = "${var.domainName}" >> /etc/environment
-      echo export TOPIC_ARN = "${aws_sns_topic.snsTopic.arn}" >> /etc/environment
+      echo export Replica_DB_HOST="${aws_db_instance.rds_replica.address}" >> /etc/environment
       echo export PORT="${var.port}" >> /etc/environment
       EOF
 }
@@ -365,33 +375,143 @@ resource "aws_codedeploy_deployment_group" "codeDeployGroup" {
   depends_on = [aws_codedeploy_app.codeDeployApp]
 }
 
-resource "aws_launch_configuration" "asg_launch_config" {
-  name_prefix                 = "asg_launch_config"
-  image_id                    = data.aws_ami.testAmi.id
-  instance_type               = var.instance_type
-  key_name                    = var.key_name
-  security_groups             = [aws_security_group.application.id]
-  associate_public_ip_address = true
-  iam_instance_profile        = aws_iam_instance_profile.iam_ec2_profileRole.name
-  user_data                   = <<-EOF
-		#! /bin/bash
-      echo export DB_USERNAME="${var.username}" >> /etc/environment
-      echo export DOMAIN_NAME="${var.domainName}" >> /etc/environment
-      echo export TOPIC_ARN="${aws_sns_topic.snsTopic.arn}" >> /etc/environment
-      echo export DB_NAME="${var.dbname}" >> /etc/environment
-      echo export DB_PASSWORD="${var.password}" >> /etc/environment
-      echo export DB_HOST="${aws_db_instance.rds.address}" >> /etc/environment
-      echo export Replica_DB_HOST="${aws_db_instance.rds_replica.address}" >> /etc/environment
-      echo export S3_BUCKET="${aws_s3_bucket.s3bucket.bucket}" >> /etc/environment
-      echo export PORT="${var.port}" >> /etc/environment
-      EOF
-  root_block_device {
-    volume_size           = var.volume_size
-    volume_type           = var.volume_type
-    delete_on_termination = true
-  }
-  depends_on = [aws_db_instance.rds]
+resource "aws_kms_key" "keyForEC2" {
+  description             = "ec2 key"
+  deletion_window_in_days = 10
+  policy                  = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::${var.accountId[1]}:root"},
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {"AWS": [
+        "arn:aws:iam::${var.accountId[1]}:user/${var.aws_iam_user_name}",
+        "arn:aws:iam::${var.accountId[1]}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+      ]},
+      "Action": [
+        "kms:Create*",
+        "kms:Describe*",
+        "kms:Enable*",
+        "kms:List*",
+        "kms:Put*",
+        "kms:Update*",
+        "kms:Revoke*",
+        "kms:Disable*",
+        "kms:Get*",
+        "kms:Delete*",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:ScheduleKeyDeletion",
+        "kms:CancelKeyDeletion"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {"AWS": [
+        "arn:aws:iam::${var.accountId[1]}:user/${var.aws_iam_user_name}",
+        "arn:aws:iam::${var.accountId[1]}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",
+        "arn:aws:iam::${var.accountId[1]}:root"
+      ]},
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {"AWS": [
+        "arn:aws:iam::${var.accountId[1]}:user/${var.aws_iam_user_name}",
+        "arn:aws:iam::${var.accountId[1]}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",
+        "arn:aws:iam::${var.accountId[1]}:root"
+      ]},
+      "Action": [
+        "kms:CreateGrant",
+        "kms:ListGrants",
+        "kms:RevokeGrant"
+      ],
+      "Resource": "*",
+      "Condition": {"Bool": {"kms:GrantIsForAWSResource": "true"}}
+    }
+  ]
 }
+EOF
+}
+
+resource "aws_kms_key" "keyForRds" {
+  description             = "rds key"
+  deletion_window_in_days = 10
+}
+
+resource "aws_launch_template" "asg_launch_template" {
+  depends_on = [aws_db_instance.rds]
+  name       = "asg_launch_template"
+  iam_instance_profile {
+    name = aws_iam_instance_profile.iam_ec2_profileRole.name
+  }
+  key_name               = var.key_name
+  image_id               = data.aws_ami.testAmi.id
+  instance_type          = var.instance_type
+  vpc_security_group_ids = [aws_security_group.application.id]
+  user_data              = base64encode(data.template_file.config_data.rendered)
+  block_device_mappings {
+    device_name = "/dev/sda1"
+
+    ebs {
+      volume_size           = var.volume_size
+      volume_type           = var.volume_type
+      delete_on_termination = true
+      encrypted             = true
+      kms_key_id            = aws_kms_key.keyForEC2.arn
+    }
+  }
+}
+// resource "aws_launch_configuration" "asg_launch_config" {
+//   name_prefix                 = "asg_launch_config"
+//   image_id                    = data.aws_ami.testAmi.id
+//   instance_type               = var.instance_type
+//   key_name                    = var.key_name
+//   security_groups             = [aws_security_group.application.id]
+//   associate_public_ip_address = true
+//   // root_block_device = aws_ebs_volume.ebsVol.id
+//   // key_name                    = aws_kms_key.keyForEC2.id
+//   iam_instance_profile        = aws_iam_instance_profile.iam_ec2_profileRole.name
+//   // root_block_device = aws_ebs_volume.ebsVol.id
+//   user_data                   = <<-EOF
+// 		#! /bin/bash
+//       echo export DB_USERNAME="${var.username}" >> /etc/environment
+//       echo export DOMAIN_NAME="${var.domainName}" >> /etc/environment
+//       echo export TOPIC_ARN="${aws_sns_topic.snsTopic.arn}" >> /etc/environment
+//       echo export DB_NAME="${var.dbname}" >> /etc/environment
+//       echo export DB_PASSWORD="${var.password}" >> /etc/environment
+//       echo export DB_HOST="${aws_db_instance.rds.address}" >> /etc/environment
+//       echo export Replica_DB_HOST="${aws_db_instance.rds_replica.address}" >> /etc/environment
+//       echo export S3_BUCKET="${aws_s3_bucket.s3bucket.bucket}" >> /etc/environment
+//       echo export PORT="${var.port}" >> /etc/environment
+//       EOF
+//   root_block_device {
+//     volume_size           = var.volume_size
+//     volume_type           = var.volume_type
+//     delete_on_termination = true
+//     encrypted = true
+//     // kms_key_id = aws_kms_key.keyForEC2.id
+//   }
+//   depends_on = [aws_db_instance.rds]
+// }
 
 resource "aws_security_group" "loadBalancerSecurityGrp" {
   name   = "loadBalancerSecurityGrp"
@@ -446,15 +566,17 @@ resource "aws_security_group" "loadBalancerSecurityGrp" {
 }
 
 resource "aws_autoscaling_group" "autoScaleGroup" {
-  // availability_zones = [var.subnet_az[0]]
-  name                 = "agents"
-  max_size             = "5"
-  min_size             = "3"
-  default_cooldown     = 60
-  desired_capacity     = 3
-  launch_configuration = aws_launch_configuration.asg_launch_config.name
-  vpc_zone_identifier  = aws_subnet.public-subnet.*.id
-
+  name             = "agents"
+  max_size         = "5"
+  min_size         = "3"
+  default_cooldown = 60
+  desired_capacity = 3
+  // launch_configuration = aws_launch_configuration.asg_launch_config.name
+  vpc_zone_identifier = aws_subnet.public-subnet.*.id
+  launch_template {
+    id      = aws_launch_template.asg_launch_template.id
+    version = aws_launch_template.asg_launch_template.latest_version
+  }
   target_group_arns = [aws_lb_target_group.LoadBalancerTargetGroup.arn]
   tag {
     key                 = "Name"
@@ -549,15 +671,15 @@ resource "aws_lb_target_group" "LoadBalancerTargetGroup" {
   }
 }
 
-resource "aws_lb_listener" "alb_listener" {
-  load_balancer_arn = aws_lb.AppLoadBalancer.arn
-  port              = "80"
-  protocol          = "HTTP"
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.LoadBalancerTargetGroup.arn
-  }
-}
+// resource "aws_lb_listener" "alb_listener" {
+//   load_balancer_arn = aws_lb.AppLoadBalancer.arn
+//   port              = "80"
+//   protocol          = "HTTP"
+//   default_action {
+//     type             = "forward"
+//     target_group_arn = aws_lb_target_group.LoadBalancerTargetGroup.arn
+//   }
+// }
 
 # AWS Route53 Alias Record for ALB
 resource "aws_route53_record" "www" {
@@ -766,31 +888,12 @@ resource "aws_iam_role_policy_attachment" "lambdaRolePolicyAttach" {
   role       = aws_iam_role.lambdaRole.name
   policy_arn = aws_iam_policy.lambda_policy.arn
 }
-/* Private subnets */
-// resource "aws_subnet" "replica_private_subnet" {
-//   vpc_id                  = aws_vpc.vpc.id
-//   count                   = length(var.replica_private_subnet_az)
-//   cidr_block              = var.replica_private_subnet_cidrs[count.index]
-//   availability_zone       = var.replica_private_subnet_az[count.index]
-//   map_public_ip_on_launch = false
-//   tags = {
-//     Name = "Replica Private Subnet"
-//   }
-// }
-// resource "aws_db_subnet_group" "replica_awsDbSubnetGrp" {
-//   name       = "replica_main"
-//   subnet_ids = [aws_subnet.replica_private_subnet[0].id, aws_subnet.replica_private_subnet[1].id]
-// }
-// data "aws_db_instance" "masterDB" {
-//   depends_on             = [aws_db_instance.rds]
-//   db_instance_identifier = "csye6225"
-// }
 
 resource "aws_db_instance" "rds_replica" {
   depends_on = [aws_db_instance.rds]
   identifier = "replica-csye6225"
   engine = var.engine
-  // auto_minor_version_upgrade = true
+  auto_minor_version_upgrade = true
   engine_version = "13.4"
   instance_class = "db.t3.micro"
   name = "read_replica_indentifier"
@@ -867,7 +970,7 @@ resource "aws_iam_policy" "dynamoDbPolicy" {
 }
 
 resource "aws_cloudwatch_log_group" "lambda_log_group" {
-  name  = "/aws/lambda/${aws_lambda_function.lambdaFn.function_name}"
+  name = "/aws/lambda/${aws_lambda_function.lambdaFn.function_name}"
 }
 
 resource "aws_iam_role_policy_attachment" "attachDynamoDbPolicyToRole" {
@@ -1146,4 +1249,21 @@ resource "aws_iam_user_policy_attachment" "lambda_dunction_ec2_policy_attach" {
 resource "aws_iam_instance_profile" "iam_ec2_profileRole" {
   name = "iam_ec2_profileRole"
   role = aws_iam_role.CodeDeployEC2ServiceRole.name
+}
+
+data "aws_acm_certificate" "certificate" {
+  domain   = var.domainName
+  statuses = ["ISSUED"]
+}
+
+resource "aws_lb_listener" "alb_listener_ssl" {
+  load_balancer_arn = aws_lb.AppLoadBalancer.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  // ssl_policy        = "SSL_Policy"
+  certificate_arn = data.aws_acm_certificate.certificate.arn
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.LoadBalancerTargetGroup.arn
+  }
 }
